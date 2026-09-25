@@ -5,7 +5,7 @@ import os
 # --- PAGE SETUP ---
 st.set_page_config(page_title="English Mastery Suite", page_icon="🇬🇧", layout="centered")
 
-# Custom UI Styling
+# Custom UI Styling (Includes removing +/- buttons and coloring answers)
 st.markdown("""
     <style>
     .main-header { font-size: 2.3rem; color: #1e3a8a; font-weight: bold; text-align: center; margin-bottom: 5px; }
@@ -14,6 +14,15 @@ st.markdown("""
     .topic-card { background-color: #f0fdf4; border-left: 5px solid #16a34a; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
     .metric-box { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; }
     .result-box { background-color: #eff6ff; border: 2px dashed #2563eb; padding: 30px; border-radius: 12px; text-align: center; margin-top: 20px; }
+    
+    /* REMOVE + AND - BUTTONS FROM NUMBER INPUT */
+    div[data-testid="stNumberInput"] button {
+        display: none !important;
+    }
+    
+    /* CUSTOM GREEN AND RED REVEAL BOXES */
+    .correct-reveal { background-color: #d1fae5; border: 2px solid #10b981; color: #065f46; padding: 15px; border-radius: 8px; font-weight: bold; margin-top: 10px; }
+    .incorrect-reveal { background-color: #fee2e2; border: 2px solid #ef4444; color: #991b1b; padding: 15px; border-radius: 8px; font-weight: bold; margin-top: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -43,7 +52,6 @@ def get_day_info(day):
 # --- 2. UNIQUE 100-QUESTION TEST GENERATOR PER DAY ---
 def generate_mock_questions(day_num, track):
     questions = []
-    
     vocab_pool = ["eloquent", "meticulous", "ephemeral", "resilient", "pragmatic", "gregarious", "tenacious", "scrutinize", "corroborate", "lucrative"]
     business_pool = ["leverage resources", "optimize workflow", "synergize milestones", "mitigate liabilities", "streamline assets", "expedite deliverables"]
     idiom_pool = ["read between the lines", "hit the nail on the head", "burn the midnight oil", "bite the bullet", "break the ice"]
@@ -68,7 +76,6 @@ def generate_mock_questions(day_num, track):
                     "options": ["would have caught", "will catch", "would catch", "caught"],
                     "correct": "would have caught"
                 })
-                
         elif track == "Idioms":
             questions.append({
                 "id": i,
@@ -76,7 +83,6 @@ def generate_mock_questions(day_num, track):
                 "options": ["To act accurately or understand perfectly", "To ignore clear reality parameters", "To completely delay assignments", "To modify existing rules"],
                 "correct": "To act accurately or understand perfectly"
             })
-            
         elif track == "Business":
             questions.append({
                 "id": i,
@@ -84,7 +90,6 @@ def generate_mock_questions(day_num, track):
                 "options": [f"{b_phrase} effectively", "do things faster", "get extra stuff", "fix up the problems"],
                 "correct": f"{b_phrase} effectively"
             })
-            
         elif track == "Vocab":
             questions.append({
                 "id": i,
@@ -92,7 +97,6 @@ def generate_mock_questions(day_num, track):
                 "options": ["Showing careful accuracy and precision", "Extremely quick or instant", "Highly aggressive or disruptive", "Lacking form or value"],
                 "correct": "Showing careful accuracy and precision"
             })
-            
         else:
             questions.append({
                 "id": i,
@@ -100,7 +104,6 @@ def generate_mock_questions(day_num, track):
                 "options": ["Make the subject perform the action directly", "Add words like 'due to the fact that'", "Use passive helping verbs extensively", "Leave out structural transition markers"],
                 "correct": "Make the subject perform the action directly"
             })
-            
     return questions
 
 # --- 3. PERSISTENT PROGRESS STORAGE MANAGEMENT ---
@@ -108,8 +111,11 @@ PROGRESS_FILE = "user_progress_365.json"
 
 def load_progress():
     if os.path.exists(PROGRESS_FILE):
-        with open(PROGRESS_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(PROGRESS_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {}
     return {}
 
 def save_progress(progress):
@@ -159,7 +165,6 @@ with tab1:
 with tab2:
     st.subheader(f"🏆 Day {target_day} Dedicated Mock Exam Studio")
     
-    # CASE A: Exam is active (Sequential queue 1 to 100)
     if current_q_idx <= 100:
         st.markdown(f"<div class='metric-box'>Day {target_day} Progress Tracker<br><span style='color:#2563eb; font-size:1.5rem;'>{current_q_idx - 1} / 100</span> Questions Answered</div>", unsafe_allow_html=True)
         st.write("")
@@ -171,6 +176,8 @@ with tab2:
         
         saved_ans = day_data["answers"].get(str(current_q_idx), None)
         is_disabled = st.session_state[f"answered_day_{day_key}"] or (saved_ans is not None)
+        
+        # USER DECIDES BLOCK: Pre-selects nothing (index=None) if it's an unanswered new question
         default_idx = q_item["options"].index(saved_ans) if saved_ans in q_item["options"] else None
         
         choice = st.radio(
@@ -183,7 +190,7 @@ with tab2:
         
         st.write("")
         
-        # Action Step 1: Check Answer Button
+       # Action Step 1: Check Answer Button
         if not is_disabled:
             if st.button("🔬 Check Answer", use_container_width=True, key=f"btn_check_{target_day}_{current_q_idx}"):
                 if choice is not None:
@@ -192,16 +199,26 @@ with tab2:
                     save_progress(global_progress)
                     st.rerun()
                 else:
-                    st.warning("⚠️ Please select an answer option first.")
+                    st.warning("⚠️ Please select an answer option first before validating.")
                     
-        # Action Step 2: Show immediate feedback banners and next page triggers
-        # Action Step 2: Show immediate feedback banners and next page triggers
+        # Action Step 2: Custom HTML Visual Feedback Colors
         if is_disabled:
             final_choice = choice if choice is not None else saved_ans
             if final_choice == q_item["correct"]:
-                st.success("🎯 Correct! Flawless sentence structure choice.")
+                st.markdown(f"""
+                    <div class="correct-reveal">
+                        🎯 Correct! Flawless choice.<br>
+                        <span style="font-size: 1.1rem;">Correct Answer: {q_item['correct']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
             else:
-                st.error(f"❌ Incorrect. The ideal choice is: **{q_item['correct']}**")
+                st.markdown(f"""
+                    <div class="incorrect-reveal">
+                        ❌ Incorrect answer selected.<br>
+                        <span style="font-size: 1.1rem; text-decoration: line-through;">Your Pick: {final_choice if final_choice else "None"}</span><br>
+                        <span style="font-size: 1.1rem; font-weight: 800;">👉 Correct Answer: {q_item['correct']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
                 
             st.write("")
             if st.button("Next Question ➡️", use_container_width=True, key=f"btn_next_{target_day}_{current_q_idx}"):
@@ -209,3 +226,26 @@ with tab2:
                 st.session_state[f"answered_day_{day_key}"] = False
                 save_progress(global_progress)
                 st.rerun()
+
+    else:
+        correct_count = 0
+        for q_item in current_mock_questions:
+            q_id_str = str(q_item["id"])
+            user_ans = day_data["answers"].get(q_id_str)
+            if user_ans == q_item["correct"]:
+                correct_count += 1
+                
+        st.markdown(f"""
+            <div class='result-box'>
+                <h3 style='color: #1e3a8a;'>🎉 Day {target_day} Test Complete!</h3>
+                <p style='font-size: 1.2rem; margin: 15px 0;'>Your Final Score: <span style='color: #16a34a; font-weight: bold;'>{correct_count} / 100</span></p>
+                <p style='color: #4b5563; font-size: 0.95rem;'>Great work finishing this segment! Keep advancing on your path to fluency.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("")
+        if st.button("🔄 Retake Day Test", use_container_width=True, key=f"btn_reset_{target_day}"):
+            global_progress[day_key] = {"answers": {}, "current_q": 1}
+            st.session_state[f"answered_day_{day_key}"] = False
+            save_progress(global_progress)
+            st.rerun()
